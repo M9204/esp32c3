@@ -1,37 +1,147 @@
 <!DOCTYPE html>
-<html>
-<head><title>ESP32 LED Control</title></head>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ESP32-C3 GPIO Online Control</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    max-width: 480px;
+    margin: 20px auto;
+    padding: 10px;
+  }
+  h2 {
+    text-align: center;
+  }
+  .pin {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin: 8px 0;
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+  }
+  button {
+    min-width: 60px;
+    padding: 6px 10px;
+    border: none;
+    border-radius: 4px;
+    color: white;
+    cursor: pointer;
+    font-weight: bold;
+  }
+  button.high {
+    background-color: #4CAF50;
+  }
+  button.low {
+    background-color: #f44336;
+  }
+  #json-output {
+    margin-top: 20px;
+    font-family: monospace;
+    white-space: pre-wrap;
+    background: #f5f5f5;
+    border: 1px solid #ccc;
+    padding: 10px;
+    max-height: 200px;
+    overflow-y: auto;
+  }
+  #update-json {
+    margin-top: 10px;
+    background-color: #2196F3;
+    padding: 10px;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 1em;
+  }
+</style>
+</head>
 <body>
-  <h2>LED Control</h2>
-  <button id="ledBtn">Loading...</button>
 
-  <script>
-    const ws = new WebSocket(`ws://${location.hostname}:81`);
-    const ledBtn = document.getElementById('ledBtn');
-    let ledOn = false;
+<h2>ESP32-C3 GPIO Online Control</h2>
+<p>This page loads <code>pinstates.json</code> and lets you toggle pins locally. You can copy the updated JSON and update your <code>pinstates.json</code> file in the GitHub repo manually.</p>
 
-    ws.onopen = () => {
-      ws.send("GET_STATE");
-    };
+<div id="pins-container"></div>
 
-    ws.onmessage = (event) => {
-      if (event.data.startsWith("LED_STATE:")) {
-        ledOn = event.data.slice(10) === "1";
-        updateButton();
-      }
-    };
+<button id="update-json">Generate Updated JSON</button>
 
-    ledBtn.onclick = () => {
-      ledOn = !ledOn;
-      ws.send("LED:" + (ledOn ? "1" : "0"));
-      updateButton();
-    };
+<pre id="json-output"></pre>
 
-    function updateButton() {
-      ledBtn.textContent = ledOn ? "Turn LED OFF" : "Turn LED ON";
-      ledBtn.style.backgroundColor = ledOn ? "green" : "gray";
-      ledBtn.style.color = ledOn ? "white" : "black";
+<script>
+  // Pins we control
+  const pins = [0,1,2,3,4,5,6,7,8,9,10,20,21];
+
+  // State map, default LOW
+  let pinStates = {};
+  pins.forEach(pin => pinStates[pin] = 0);
+
+  const pinsContainer = document.getElementById('pins-container');
+  const jsonOutput = document.getElementById('json-output');
+  const updateBtn = document.getElementById('update-json');
+
+  // Create buttons for each pin
+  function renderPins() {
+    pinsContainer.innerHTML = '';
+    pins.forEach(pin => {
+      const div = document.createElement('div');
+      div.className = 'pin';
+
+      const label = document.createElement('span');
+      label.textContent = `Pin ${pin}`;
+
+      const btn = document.createElement('button');
+      btn.id = `btn${pin}`;
+      btn.textContent = pinStates[pin] === 1 ? 'HIGH' : 'LOW';
+      btn.className = pinStates[pin] === 1 ? 'high' : 'low';
+
+      btn.onclick = () => {
+        pinStates[pin] = pinStates[pin] === 0 ? 1 : 0;
+        btn.textContent = pinStates[pin] === 1 ? 'HIGH' : 'LOW';
+        btn.className = pinStates[pin] === 1 ? 'high' : 'low';
+      };
+
+      div.appendChild(label);
+      div.appendChild(btn);
+      pinsContainer.appendChild(div);
+    });
+  }
+
+  // Load JSON from pinstates.json
+  async function loadPinStates() {
+    try {
+      const response = await fetch('pinstates.json?' + Date.now());
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const json = await response.json();
+      // Update local pinStates with loaded data
+      pins.forEach(pin => {
+        if (json.hasOwnProperty(pin)) {
+          pinStates[pin] = json[pin] ? 1 : 0;
+        }
+      });
+      renderPins();
+    } catch (err) {
+      alert('Failed to load pinstates.json: ' + err);
+      renderPins();
     }
-  </script>
+  }
+
+  // Generate JSON text for current states
+  function generateJsonText() {
+    return JSON.stringify(pinStates, null, 2);
+  }
+
+  // Update JSON output box
+  updateBtn.onclick = () => {
+    jsonOutput.textContent = generateJsonText();
+    alert('Copy the JSON above and update your pinstates.json file in the GitHub repo manually.');
+  };
+
+  loadPinStates();
+</script>
+
 </body>
 </html>
