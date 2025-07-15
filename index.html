@@ -1,53 +1,36 @@
 <!DOCTYPE html>
 <html>
-<head>
-  <title>ESP32 GPIO Control</title>
-  <style>
-    body { font-family: sans-serif; text-align: center; margin-top: 40px; }
-    button { width: 120px; margin: 10px; padding: 10px; font-size: 16px; }
-  </style>
-</head>
+<head><title>ESP32 LED Control</title></head>
 <body>
-  <h2>ESP32 GPIO Control</h2>
-  <div id="buttons"></div>
+  <h2>LED Control</h2>
+  <button id="ledBtn">Loading...</button>
 
   <script>
-    const pins = [0,1,2,3,4,5,6,7,8,9,10,20,21];
-    const states = {};
-    const ws = new WebSocket("ws://" + location.hostname + ":81");
+    const ws = new WebSocket(`ws://${location.hostname}:81`);
+    const ledBtn = document.getElementById('ledBtn');
+    let ledOn = false;
 
-    ws.onopen = () => ws.send("STATUS");
+    ws.onopen = () => {
+      ws.send("GET_STATE");
+    };
 
     ws.onmessage = (event) => {
-      if (event.data.startsWith("STATE:")) {
-        const parts = event.data.slice(6).split(",");
-        parts.forEach(p => {
-          const [pin, val] = p.split("=");
-          if (pin) {
-            states[pin] = val;
-            draw(pin);
-          }
-        });
+      if (event.data.startsWith("LED_STATE:")) {
+        ledOn = event.data.slice(10) === "1";
+        updateButton();
       }
     };
 
-    function draw(pin) {
-      let btn = document.getElementById("pin" + pin);
-      if (!btn) {
-        btn = document.createElement("button");
-        btn.id = "pin" + pin;
-        btn.onclick = () => toggle(pin);
-        document.getElementById("buttons").appendChild(btn);
-      }
-      btn.textContent = `GPIO ${pin}: ${states[pin] == "1" ? "ON" : "OFF"}`;
-      btn.style.background = states[pin] == "1" ? "#4CAF50" : "#ccc";
-    }
+    ledBtn.onclick = () => {
+      ledOn = !ledOn;
+      ws.send("LED:" + (ledOn ? "1" : "0"));
+      updateButton();
+    };
 
-    function toggle(pin) {
-      const newState = states[pin] == "1" ? 0 : 1;
-      ws.send(`SET:${pin},${newState}`);
-      states[pin] = newState;
-      draw(pin);
+    function updateButton() {
+      ledBtn.textContent = ledOn ? "Turn LED OFF" : "Turn LED ON";
+      ledBtn.style.backgroundColor = ledOn ? "green" : "gray";
+      ledBtn.style.color = ledOn ? "white" : "black";
     }
   </script>
 </body>
