@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>ESP32-C3 Control</title>
+  <style>
+    body { font-family: Arial; text-align: center; padding: 2rem; }
+    button { padding: 1rem; margin: 0.5rem; font-size: 1.2rem; }
+  </style>
+</head>
+<body>
+  <h1>ESP32 GPIO Control</h1>
+  <div id="controls">
+    <button onclick="toggle(2)">Toggle GPIO 2</button>
+    <button onclick="toggle(3)">Toggle GPIO 3</button>
+    <button onclick="toggle(4)">Toggle GPIO 4</button>
+    <button onclick="toggle(5)">Toggle GPIO 5</button>
+  </div>
+  <script>
+    const socket = new WebSocket("ws://your-server.com/ws");  // Use wss:// if secure
+    const state = { gpio2: 0, gpio3: 0, gpio4: 0, gpio5: 0 };
+
+    socket.onopen = () => console.log("WebSocket connected.");
+    socket.onmessage = (event) => console.log("From ESP:", event.data);
+    socket.onclose = () => console.log("WebSocket disconnected.");
+
+    function toggle(pin) {
+      const key = `gpio${pin}`;
+      state[key] = state[key] === 0 ? 1 : 0;
+      socket.send(JSON.stringify({ [key]: state[key] }));
+    }
+  </script>
+</body>
+</html>
