@@ -1,32 +1,54 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>ESP32-C3 Control</title>
+  <title>ESP32 GPIO Control</title>
   <style>
-    body { font-family: Arial; text-align: center; padding: 2rem; }
-    button { padding: 1rem; margin: 0.5rem; font-size: 1.2rem; }
+    body { font-family: sans-serif; text-align: center; margin-top: 40px; }
+    button { width: 100px; margin: 10px; padding: 10px; font-size: 16px; }
   </style>
 </head>
 <body>
-  <h1>ESP32 GPIO Control</h1>
-  <div id="controls">
-    <button onclick="toggle(2)">Toggle GPIO 2</button>
-    <button onclick="toggle(3)">Toggle GPIO 3</button>
-    <button onclick="toggle(4)">Toggle GPIO 4</button>
-    <button onclick="toggle(5)">Toggle GPIO 5</button>
-  </div>
+  <h2>ESP32 GPIO Control</h2>
+  <div id="buttons"></div>
+
   <script>
-    const socket = new WebSocket("ws://your-server.com/ws");  // Use wss:// if secure
-    const state = { gpio2: 0, gpio3: 0, gpio4: 0, gpio5: 0 };
+    const gpioPins = [0,1,2,3,4,5,6,7,8,9,10,20,21];
+    const buttonsDiv = document.getElementById('buttons');
+    const ws = new WebSocket(`ws://${location.hostname}:81`);
 
-    socket.onopen = () => console.log("WebSocket connected.");
-    socket.onmessage = (event) => console.log("From ESP:", event.data);
-    socket.onclose = () => console.log("WebSocket disconnected.");
+    const pinStates = {};
 
-    function toggle(pin) {
-      const key = `gpio${pin}`;
-      state[key] = state[key] === 0 ? 1 : 0;
-      socket.send(JSON.stringify({ [key]: state[key] }));
+    ws.onopen = () => ws.send("STATUS");
+    ws.onmessage = (msg) => {
+      if (msg.data.startsWith("STATE:")) {
+        const pairs = msg.data.slice(6).split(",");
+        pairs.forEach(p => {
+          const [pin, state] = p.split("=");
+          if (pin && state !== undefined) {
+            pinStates[pin] = state;
+            updateButton(pin);
+          }
+        });
+      }
+    };
+
+    function updateButton(pin) {
+      let btn = document.getElementById(`pin-${pin}`);
+      if (!btn) {
+        btn = document.createElement("button");
+        btn.id = `pin-${pin}`;
+        btn.onclick = () => togglePin(pin);
+        buttonsDiv.appendChild(btn);
+      }
+      btn.textContent = `GPIO ${pin}: ${pinStates[pin] == "1" ? "ON" : "OFF"}`;
+      btn.style.backgroundColor = pinStates[pin] == "1" ? "#4CAF50" : "#ccc";
+    }
+
+    function togglePin(pin) {
+      const newState = pinStates[pin] == "1" ? 0 : 1;
+      ws.send(`SET:${pin},${newState}`);
+      pinStates[pin] = newState;
+      updateButton(pin);
     }
   </script>
 </body>
