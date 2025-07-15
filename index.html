@@ -3,145 +3,68 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>ESP32-C3 GPIO Online Control</title>
+<title>ESP32-C3 Remote GPIO Control</title>
 <style>
-  body {
-    font-family: Arial, sans-serif;
-    max-width: 480px;
-    margin: 20px auto;
-    padding: 10px;
-  }
-  h2 {
-    text-align: center;
-  }
-  .pin {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin: 8px 0;
-    padding: 8px 12px;
-    border: 1px solid #ddd;
-    border-radius: 6px;
-  }
-  button {
-    min-width: 60px;
-    padding: 6px 10px;
-    border: none;
-    border-radius: 4px;
-    color: white;
-    cursor: pointer;
-    font-weight: bold;
-  }
-  button.high {
-    background-color: #4CAF50;
-  }
-  button.low {
-    background-color: #f44336;
-  }
-  #json-output {
-    margin-top: 20px;
-    font-family: monospace;
-    white-space: pre-wrap;
-    background: #f5f5f5;
-    border: 1px solid #ccc;
-    padding: 10px;
-    max-height: 200px;
-    overflow-y: auto;
-  }
-  #update-json {
-    margin-top: 10px;
-    background-color: #2196F3;
-    padding: 10px;
-    color: white;
-    border: none;
-    border-radius: 6px;
-    cursor: pointer;
-    font-size: 1em;
-  }
+  body { font-family: Arial, sans-serif; padding: 20px; }
+  button { width: 60px; height: 30px; margin: 5px; }
+  .pin-btn { margin: 5px; }
 </style>
-</head>
-<body>
-
-<h2>ESP32-C3 GPIO Online Control</h2>
-<p>This page loads <code>pinstates.json</code> and lets you toggle pins locally. You can copy the updated JSON and update your <code>pinstates.json</code> file in the GitHub repo manually.</p>
-
-<div id="pins-container"></div>
-
-<button id="update-json">Generate Updated JSON</button>
-
-<pre id="json-output"></pre>
-
 <script>
-  // Pins we control
   const pins = [0,1,2,3,4,5,6,7,8,9,10,20,21];
+  const esp32_ip = "http://YOUR_ESP32_IP"; // Replace with ESP32 IP on your WiFi
 
-  // State map, default LOW
-  let pinStates = {};
-  pins.forEach(pin => pinStates[pin] = 0);
-
-  const pinsContainer = document.getElementById('pins-container');
-  const jsonOutput = document.getElementById('json-output');
-  const updateBtn = document.getElementById('update-json');
-
-  // Create buttons for each pin
-  function renderPins() {
-    pinsContainer.innerHTML = '';
-    pins.forEach(pin => {
-      const div = document.createElement('div');
-      div.className = 'pin';
-
-      const label = document.createElement('span');
-      label.textContent = `Pin ${pin}`;
-
-      const btn = document.createElement('button');
-      btn.id = `btn${pin}`;
-      btn.textContent = pinStates[pin] === 1 ? 'HIGH' : 'LOW';
-      btn.className = pinStates[pin] === 1 ? 'high' : 'low';
-
-      btn.onclick = () => {
-        pinStates[pin] = pinStates[pin] === 0 ? 1 : 0;
-        btn.textContent = pinStates[pin] === 1 ? 'HIGH' : 'LOW';
-        btn.className = pinStates[pin] === 1 ? 'high' : 'low';
-      };
-
-      div.appendChild(label);
-      div.appendChild(btn);
-      pinsContainer.appendChild(div);
-    });
-  }
-
-  // Load JSON from pinstates.json
-  async function loadPinStates() {
+  async function togglePin(pin) {
     try {
-      const response = await fetch('pinstates.json?' + Date.now());
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const json = await response.json();
-      // Update local pinStates with loaded data
-      pins.forEach(pin => {
-        if (json.hasOwnProperty(pin)) {
-          pinStates[pin] = json[pin] ? 1 : 0;
-        }
-      });
-      renderPins();
-    } catch (err) {
-      alert('Failed to load pinstates.json: ' + err);
-      renderPins();
+      const res = await fetch(`${esp32_ip}/toggle?pin=${pin}`);
+      const state = await res.text();
+      const btn = document.getElementById('btn' + pin);
+      if (state === "1") {
+        btn.innerText = "HIGH";
+        btn.style.backgroundColor = "lightgreen";
+      } else {
+        btn.innerText = "LOW";
+        btn.style.backgroundColor = "lightcoral";
+      }
+    } catch (e) {
+      alert("Failed to reach ESP32 at " + esp32_ip);
     }
   }
 
-  // Generate JSON text for current states
-  function generateJsonText() {
-    return JSON.stringify(pinStates, null, 2);
+  async function refreshStatus() {
+    for (const pin of pins) {
+      try {
+        // We fetch root page, parse HTML to get button state (or you can create an API to get status)
+        const res = await fetch(`${esp32_ip}/`);
+        const html = await res.text();
+        // Simple parse for button text using regex for demo (better with dedicated API)
+        const regex = new RegExp(`id="btn${pin}".*?>(HIGH|LOW)<`, 'i');
+        const match = html.match(regex);
+        const btn = document.getElementById('btn' + pin);
+        if (match && btn) {
+          btn.innerText = match[1];
+          btn.style.backgroundColor = (match[1] === "HIGH") ? "lightgreen" : "lightcoral";
+        }
+      } catch (e) {
+        // ignore errors on refresh
+      }
+    }
   }
 
-  // Update JSON output box
-  updateBtn.onclick = () => {
-    jsonOutput.textContent = generateJsonText();
-    alert('Copy the JSON above and update your pinstates.json file in the GitHub repo manually.');
+  window.onload = () => {
+    const container = document.getElementById('buttons');
+    for (const pin of pins) {
+      const div = document.createElement('div');
+      div.innerHTML = `Pin ${pin}: <button id="btn${pin}" class="pin-btn" style="background-color:lightcoral" onclick="togglePin(${pin})">LOW</button>`;
+      container.appendChild(div);
+    }
+    setInterval(refreshStatus, 5000); // refresh status every 5 seconds
+    refreshStatus();
   };
-
-  loadPinStates();
 </script>
-
+</head>
+<body>
+<h2>ESP32-C3 Remote GPIO Control</h2>
+<p>Control GPIO pins from anywhere. ESP32 IP: <b id="espip">loading...</b></p>
+<div id="buttons"></div>
 </body>
 </html>
