@@ -1,22 +1,25 @@
 const express = require('express');
-const mqtt = require('mqtt');
-const { createServer } = require('http');
-const { WebSocketServer } = require('ws');
+const http = require('http');
+const WebSocket = require('ws');
 const aedes = require('aedes')();
+const websocketStream = require('websocket-stream');
 
 const app = express();
-const server = createServer(app);
+const server = http.createServer(app);
+const port = process.env.PORT || 3000;
 
-// Serve frontend
+// Serve public folder for web UI
 app.use(express.static('public'));
 
-// MQTT over WebSocket bridge
-const wsServer = new WebSocketServer({ server, path: '/mqtt' });
-wsServer.on('connection', (stream) => {
-  const duplex = require('stream').Duplex.fromWebSocket(stream);
-  aedes.handle(duplex);
+// MQTT over WebSocket (at /mqtt)
+const wss = new WebSocket.Server({ server, path: '/mqtt' });
+
+wss.on('connection', (ws) => {
+  const stream = websocketStream(ws);
+  aedes.handle(stream);
 });
 
-server.listen(process.env.PORT || 3000, () => {
-  console.log('Server and MQTT broker running');
+// Start server
+server.listen(port, () => {
+  console.log(`✅ Server and MQTT broker running on port ${port}`);
 });
