@@ -1,36 +1,53 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Remote ESP32 Control</title>
+  <title>ESP32 Relay Control</title>
   <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
   <style>
     body { font-family: sans-serif; text-align: center; margin-top: 40px; }
-    button { width: 100px; height: 60px; margin: 10px; font-size: 18px; }
+    .relay-btn { width: 120px; height: 60px; font-size: 18px; margin: 10px; }
+    .led { display: inline-block; width: 20px; height: 20px; border-radius: 50%; margin-left: 10px; }
+    .on { background-color: green; }
+    .off { background-color: red; }
   </style>
 </head>
 <body>
-  <h2>Control ESP32 Relays Remotely</h2>
+  <h2>Remote ESP32 Relay Control</h2>
   <div>
-    <button onclick="sendRelay(0)">Relay 1</button>
-    <button onclick="sendRelay(1)">Relay 2</button>
-    <br>
-    <button onclick="sendRelay(2)">Relay 3</button>
-    <button onclick="sendRelay(3)">Relay 4</button>
+    <button class="relay-btn" onclick="toggleRelay(0)">Relay 1</button>
+    <span id="led0" class="led off"></span><br>
+    <button class="relay-btn" onclick="toggleRelay(1)">Relay 2</button>
+    <span id="led1" class="led off"></span><br>
+    <button class="relay-btn" onclick="toggleRelay(2)">Relay 3</button>
+    <span id="led2" class="led off"></span><br>
+    <button class="relay-btn" onclick="toggleRelay(3)">Relay 4</button>
+    <span id="led3" class="led off"></span>
   </div>
 
   <script>
     const client = mqtt.connect('wss://' + window.location.hostname + '/mqtt');
 
     client.on('connect', () => {
-      console.log('Connected to MQTT');
+      console.log("Connected to MQTT");
+      client.subscribe('esp32c3/relays/status');
     });
 
-    function sendRelay(index) {
-      // Create 4-byte payload: toggle selected relay
-      const state = [0, 0, 0, 0];
-      state[index] = 1;
-      client.publish('esp32c3/relays', new Uint8Array(state));
+    function toggleRelay(index) {
+      const payload = [0, 0, 0, 0];
+      payload[index] = 1;
+      client.publish('esp32c3/relays', new Uint8Array(payload));
     }
+
+    // Update LEDs based on status
+    client.on('message', (topic, message) => {
+      if (topic === 'esp32c3/relays/status') {
+        for (let i = 0; i < 4; i++) {
+          const state = message[i] === 1;
+          const led = document.getElementById('led' + i);
+          led.className = 'led ' + (state ? 'on' : 'off');
+        }
+      }
+    });
   </script>
 </body>
 </html>
