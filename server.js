@@ -1,33 +1,22 @@
-const WebSocket = require('ws');
-const wss = new WebSocket.Server({ port: 8080 });
+const express = require('express');
+const mqtt = require('mqtt');
+const { createServer } = require('http');
+const { WebSocketServer } = require('ws');
+const aedes = require('aedes')();
 
-let espSocket = null;
+const app = express();
+const server = createServer(app);
 
-wss.on('connection', (ws) => {
-  console.log("New connection");
+// Serve frontend
+app.use(express.static('public'));
 
-  ws.on('message', (msg) => {
-    console.log("Received:", msg);
+// MQTT over WebSocket bridge
+const wsServer = new WebSocketServer({ server, path: '/mqtt' });
+wsServer.on('connection', (stream) => {
+  const duplex = require('stream').Duplex.fromWebSocket(stream);
+  aedes.handle(duplex);
+});
 
-    // If from web client, forward to ESP
-    if (ws !== espSocket && espSocket) {
-      espSocket.send(msg);
-    }
-
-    // If from ESP, forward to others
-    if (ws === espSocket) {
-      wss.clients.forEach(client => {
-        if (client !== ws && client.readyState === WebSocket.OPEN) {
-          client.send(msg);
-        }
-      });
-    }
-  });
-
-  // First client to connect is ESP
-  if (!espSocket) espSocket = ws;
-
-  ws.on('close', () => {
-    if (ws === espSocket) espSocket = null;
-  });
+server.listen(process.env.PORT || 3000, () => {
+  console.log('Server and MQTT broker running');
 });
