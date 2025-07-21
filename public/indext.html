@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Remote ESP32 Control</title>
+  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+  <style>
+    body { font-family: sans-serif; text-align: center; margin-top: 40px; }
+    button { width: 100px; height: 60px; margin: 10px; font-size: 18px; }
+  </style>
+</head>
+<body>
+  <h2>Control ESP32 Relays Remotely</h2>
+  <div>
+    <button onclick="sendRelay(0)">Relay 1</button>
+    <button onclick="sendRelay(1)">Relay 2</button>
+    <br>
+    <button onclick="sendRelay(2)">Relay 3</button>
+    <button onclick="sendRelay(3)">Relay 4</button>
+  </div>
+
+  <script>
+    const client = mqtt.connect('wss://' + window.location.hostname + '/mqtt');
+
+    client.on('connect', () => {
+      console.log('Connected to MQTT');
+    });
+
+    function sendRelay(index) {
+      // Create 4-byte payload: toggle selected relay
+      const state = [0, 0, 0, 0];
+      state[index] = 1;
+      client.publish('esp32c3/relays', new Uint8Array(state));
+    }
+  </script>
+</body>
+</html>
