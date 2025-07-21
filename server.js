@@ -14,9 +14,9 @@ app.use(express.static('public'));
 // MQTT over WebSocket (at /mqtt)
 const wss = new WebSocket.Server({ server, path: '/mqtt' });
 
-wss.on('connection', (ws) => {
+wss.on('connection', function connection(ws) {
   const stream = websocketStream(ws);
-  aedes.handle(stream);
+  stream.pipe(broker.stream).pipe(stream); // if bridging to MQTT broker
 });
 
 // Start server
