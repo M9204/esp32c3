@@ -1,70 +1,87 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>ESP32-C3 Remote GPIO Control</title>
-<style>
-  body { font-family: Arial, sans-serif; padding: 20px; }
-  button { width: 60px; height: 30px; margin: 5px; }
-  .pin-btn { margin: 5px; }
-</style>
-<script>
-  const pins = [0,1,2,3,4,5,6,7,8,9,10,20,21];
-  const esp32_ip = "http://YOUR_ESP32_IP"; // Replace with ESP32 IP on your WiFi
-
-  async function togglePin(pin) {
-    try {
-      const res = await fetch(`${esp32_ip}/toggle?pin=${pin}`);
-      const state = await res.text();
-      const btn = document.getElementById('btn' + pin);
-      if (state === "1") {
-        btn.innerText = "HIGH";
-        btn.style.backgroundColor = "lightgreen";
-      } else {
-        btn.innerText = "LOW";
-        btn.style.backgroundColor = "lightcoral";
-      }
-    } catch (e) {
-      alert("Failed to reach ESP32 at " + esp32_ip);
+  <meta charset="UTF-8">
+  <title>Remote Relay Control</title>
+  <script src="https://unpkg.com/paho-mqtt/mqttws31.min.js"></script>
+  <style>
+    body { font-family: Arial; text-align: center; padding-top: 40px; }
+    h2 { margin-bottom: 30px; }
+    .relay {
+      display: inline-block;
+      margin: 10px;
     }
-  }
-
-  async function refreshStatus() {
-    for (const pin of pins) {
-      try {
-        // We fetch root page, parse HTML to get button state (or you can create an API to get status)
-        const res = await fetch(`${esp32_ip}/`);
-        const html = await res.text();
-        // Simple parse for button text using regex for demo (better with dedicated API)
-        const regex = new RegExp(`id="btn${pin}".*?>(HIGH|LOW)<`, 'i');
-        const match = html.match(regex);
-        const btn = document.getElementById('btn' + pin);
-        if (match && btn) {
-          btn.innerText = match[1];
-          btn.style.backgroundColor = (match[1] === "HIGH") ? "lightgreen" : "lightcoral";
-        }
-      } catch (e) {
-        // ignore errors on refresh
-      }
+    button {
+      width: 100px;
+      height: 60px;
+      font-size: 18px;
+      background-color: #ccc;
+      border-radius: 10px;
+      border: none;
     }
-  }
-
-  window.onload = () => {
-    const container = document.getElementById('buttons');
-    for (const pin of pins) {
-      const div = document.createElement('div');
-      div.innerHTML = `Pin ${pin}: <button id="btn${pin}" class="pin-btn" style="background-color:lightcoral" onclick="togglePin(${pin})">LOW</button>`;
-      container.appendChild(div);
+    .on {
+      background-color: #4CAF50;
+      color: white;
     }
-    setInterval(refreshStatus, 5000); // refresh status every 5 seconds
-    refreshStatus();
-  };
-</script>
+    .off {
+      background-color: #f44336;
+      color: white;
+    }
+  </style>
 </head>
 <body>
-<h2>ESP32-C3 Remote GPIO Control</h2>
-<p>Control GPIO pins from anywhere. ESP32 IP: <b id="espip">loading...</b></p>
-<div id="buttons"></div>
+  <h2>Remote Relay Control Panel</h2>
+  <div id="relays">
+    <div class="relay"><button id="r0" onclick="toggleRelay(0)">Relay 1</button></div>
+    <div class="relay"><button id="r1" onclick="toggleRelay(1)">Relay 2</button></div>
+    <div class="relay"><button id="r2" onclick="toggleRelay(2)">Relay 3</button></div>
+    <div class="relay"><button id="r3" onclick="toggleRelay(3)">Relay 4</button></div>
+  </div>
+
+  <script>
+    // Config your Render WebSocket MQTT broker
+    const broker = "wss://your-render-mqtt-host.com:port/mqtt";
+    const topic = "esp32c3/relays";
+
+    let clientID = "webClient_" + parseInt(Math.random() * 10000);
+    let relayState = [0, 0, 0, 0];
+
+    const client = new Paho.MQTT.Client(broker, clientID);
+
+    client.onConnectionLost = () => console.log("MQTT connection lost");
+    client.onMessageArrived = (message) => {
+      const payload = message.payloadBytes;
+      for (let i = 0; i < 4; i++) {
+        relayState[i] = payload[i];
+        updateButton(i);
+      }
+    };
+
+    function toggleRelay(i) {
+      relayState[i] = relayState[i] ? 0 : 1;
+      updateButton(i);
+      const payload = new Uint8Array(relayState);
+      const msg = new Paho.MQTT.Message(payload);
+      msg.destinationName = topic;
+      client.send(msg);
+    }
+
+    function updateButton(i) {
+      const btn = document.getElementById("r" + i);
+      btn.className = relayState[i] ? "on" : "off";
+    }
+
+    function connect() {
+      client.connect({
+        onSuccess: () => {
+          console.log("Connected to MQTT broker");
+          client.subscribe(topic);
+        },
+        useSSL: true
+      });
+    }
+
+    connect();
+  </script>
 </body>
 </html>
