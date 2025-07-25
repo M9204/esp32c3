@@ -1,53 +1,58 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+  <meta charset="UTF-8" />
   <title>ESP32 Relay Control</title>
   <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
   <style>
-    body { font-family: sans-serif; text-align: center; margin-top: 40px; }
-    .relay-btn { width: 120px; height: 60px; font-size: 18px; margin: 10px; }
-    .led { display: inline-block; width: 20px; height: 20px; border-radius: 50%; margin-left: 10px; }
-    .on { background-color: green; }
-    .off { background-color: red; }
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      background: #f7f7f7;
+      text-align: center;
+    }
+    button {
+      margin: 5px;
+      padding: 10px 20px;
+      font-size: 18px;
+      cursor: pointer;
+    }
+    #status {
+      margin-top: 20px;
+      font-weight: bold;
+    }
   </style>
 </head>
 <body>
-  <h2>Remote ESP32 Relay Control</h2>
-  <div>
-    <button class="relay-btn" onclick="toggleRelay(0)">Relay 1</button>
-    <span id="led0" class="led off"></span><br>
-    <button class="relay-btn" onclick="toggleRelay(1)">Relay 2</button>
-    <span id="led1" class="led off"></span><br>
-    <button class="relay-btn" onclick="toggleRelay(2)">Relay 3</button>
-    <span id="led2" class="led off"></span><br>
-    <button class="relay-btn" onclick="toggleRelay(3)">Relay 4</button>
-    <span id="led3" class="led off"></span>
-  </div>
+  <h2>ESP32 Relay Controller (MQTT WebSocket)</h2>
+
+  <button onclick="publish('relay1', 'on')">Relay 1 ON</button>
+  <button onclick="publish('relay1', 'off')">Relay 1 OFF</button>
+
+  <p id="status">Connecting to MQTT...</p>
 
   <script>
-    const client = mqtt.connect('wss://' + window.location.hostname + '/mqtt');
+    // Connect to MQTT broker via WebSocket on same domain + /mqtt
+    const client = mqtt.connect(`ws://${location.host}/mqtt`);
 
     client.on('connect', () => {
-      console.log("Connected to MQTT");
-      client.subscribe('esp32c3/relays/status');
+      document.getElementById('status').textContent = 'Connected to MQTT broker ✅';
+      // Subscribe to any topics you want here
+      client.subscribe('relay1/status');
     });
 
-    function toggleRelay(index) {
-      const payload = [0, 0, 0, 0];
-      payload[index] = 1;
-      client.publish('esp32c3/relays', new Uint8Array(payload));
-    }
-
-    // Update LEDs based on status
     client.on('message', (topic, message) => {
-      if (topic === 'esp32c3/relays/status') {
-        for (let i = 0; i < 4; i++) {
-          const state = message[i] === 1;
-          const led = document.getElementById('led' + i);
-          led.className = 'led ' + (state ? 'on' : 'off');
-        }
-      }
+      console.log(`Message received on ${topic}: ${message.toString()}`);
+      // You can update UI here based on incoming messages
     });
+
+    client.on('error', (err) => {
+      document.getElementById('status').textContent = 'MQTT error: ' + err.message;
+    });
+
+    function publish(topic, message) {
+      client.publish(topic, message);
+    }
   </script>
 </body>
 </html>
